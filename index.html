@@ -180,6 +180,11 @@ function portraitSpr(){return mk(44,44,c=>{
  rect(c,16,20,4,2,'#f4ecdc');rect(c,17,20,2,2,'#2a4a8a');rect(c,24,20,4,2,'#f4ecdc');rect(c,25,20,2,2,'#2a4a8a');
  rect(c,15,19,5,1,'#5a3a1a');rect(c,24,19,5,1,'#5a3a1a');
 },{noise:.08,seed:3,outline:null})}
+function curCross(){return mk(19,19,c=>{c.lineCap='round';c.strokeStyle='#f4dc8c';c.lineWidth=4;c.beginPath();c.moveTo(4,4);c.lineTo(15,15);c.moveTo(15,4);c.lineTo(4,15);c.stroke();
+ c.strokeStyle='#fff6c8';c.lineWidth=1.5;c.beginPath();c.moveTo(4,4);c.lineTo(9,9);c.moveTo(15,4);c.lineTo(10,9);c.stroke()},{outline:'#000'})}
+function curSword(){return mk(24,24,c=>{poly(c,[3,2,6,2,17,13,14,16,3,5],'#d8d8e0');poly(c,[3,2,6,2,16,12,15.5,13],'#ffffff');
+ c.strokeStyle='#c8a030';c.lineWidth=3;c.beginPath();c.moveTo(12,19);c.lineTo(19,12);c.stroke();rect(c,17,17,3,3,'#6a3a1a');rect(c,18,18,2,2,'#4a2810');circ(c,21,21,2,'#e8c040')},{outline:'#000'})}
+function curCastle(){return mk(22,22,c=>{towerB(c,2,8,6,12);roof(c,5,8,6,6,RED);towerB(c,14,8,6,12);roof(c,17,8,6,6,RED);rect(c,7,11,8,9,STONE[2]);merlons(c,7,11,8);towerB(c,8,4,6,8);roof(c,11,4,6,4,RED);rect(c,9,15,4,5,'#2a1a0c')},{outline:'#000'})}
 function fogEdge(dir){const c=document.createElement('canvas');c.width=c.height=TS;const x=c.getContext('2d'),id=x.createImageData(TS,TS),d=id.data;
  for(let y=0;y<TS;y++)for(let X=0;X<TS;X++){const dd=dir===0?y:dir===1?TS-1-X:dir===2?TS-1-y:X;const p=Math.pow(Math.max(0,1-dd/11),1.3);
   if(hash(X,y,dir+90)<p){const i=(y*TS+X)*4;d[i+3]=255}}
@@ -200,6 +205,7 @@ function initSprites(){
  SPR.orc=[orcSpr(1),orcSpr(2)];
  SPR.decor=[flowerSpr(1),flowerSpr(2),flowerSpr(3),bushSpr(4),bushSpr(5),rockSpr(6),rockSpr(7),stumpSpr()];
  SPR.portrait=portraitSpr();
+ SPR.cur={cross:curCross(),sword:curSword(),castle:curCastle()};
  SPR.fog=[0,1,2,3].map(fogEdge);
  const p=document.createElement('canvas');p.width=p.height=2;const px=p.getContext('2d');px.fillStyle='rgba(0,0,0,.6)';px.fillRect(0,0,1,1);px.fillRect(1,1,1,1);SPR.shadow=g.createPattern(p,'repeat');
 }
@@ -334,7 +340,7 @@ function findPath(s,t,ign){if(s===t||S.blocked[t])return null;const dist=new Flo
   for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const nx=cx+dx,ny=cy+dy;if(!inb(nx,ny))continue;const n=idx(nx,ny);
    if(done[n]||S.blocked[n]||(S.inter[n]&&n!==t&&!(ign&&S.inter[n].kind==='monster')))continue;const nd=dist[c]+stepCost(n)*(dx&&dy?1.41:1);if(nd<dist[n]){dist[n]=nd;prev[n]=c;open.push(n)}}}
  if(prev[t]<0)return null;const p=[];for(let c=t;c!==s;c=prev[c]){const pc=prev[c],diag=(pc%N!==c%N)&&((pc/N|0)!==(c/N|0));p.unshift({i:c,cost:Math.round(stepCost(c)*(diag?1.41:1))})}return p}
-function clickTile(i){const h=S.hero;if(h.moving)return;
+function clickTile(i){const h=S.hero;if(h.moving)return;const fo=S.at[i];if(fo&&!fo.dead&&(fo.kind==='castle'||fo.kind==='mine'))i=idx(fo.tx,fo.ty);
  if(!S.explored[i]){say('Ces terres sont encore inexplorées.');return}
  if(h.path&&h.target===i){startMove();return}
  const p=findPath(idx(h.x,h.y),i);if(!p){say(S.blocked[i]?describe(i)+' : impossible d\'y aller.':findPath(idx(h.x,h.y),i,true)?'Le passage est gardé par des monstres : affronte-les d\'abord.':'Aucun chemin praticable.');sfx('bump');h.path=null;h.target=-1;return}
@@ -436,6 +442,7 @@ function render(t){
   if(y<N-1&&!e[idx(x,y+1)])g.drawImage(SPR.fog[2],sx,sy);if(x>0&&!e[idx(x-1,y)])g.drawImage(SPR.fog[3],sx,sy)}
  g.restore();
  drawPanel(t);
+ drawCursor();
 }
 function drawPanel(t){const h=S.hero;
  g.imageSmoothingEnabled=false;g.drawImage(S.mini,0,0,N,N,MM.x,MM.y,144,144);
@@ -461,6 +468,11 @@ function drawPanel(t){const h=S.hero;
  txt(m,VX+VPW/2,VY+VPH+29,{align:'center',size:11,w:500});
 }
 
+function cursorKind(i){if(i<0||!S.explored[i])return null;const o=S.at[i],h=S.hero;if(i===idx(h.x,h.y))return null;
+ if(o&&!o.dead){if(o.kind==='castle')return'castle';if(o.kind==='monster')return'sword';if(o.kind==='mine')return'cross'}
+ return S.blocked[i]?null:'cross'}
+function drawCursor(){if(!UI.inMap)return;const k=cursorKind(S.hover);cv.style.cursor=k?'none':'default';if(!k)return;const sp=SPR.cur[k],x=Math.round(UI.mx),y=Math.round(UI.my);
+ if(k==='sword')g.drawImage(sp,x-3,y-3);else g.drawImage(sp,x-(sp.width>>1),y-(sp.height>>1))}
 /* ================= Son (synthétisé) ================= */
 const SND={on:true,ctx:null};
 function audio(){if(!SND.ctx){try{SND.ctx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}return SND.ctx}
@@ -480,9 +492,9 @@ function pos(e){const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*W/r
 function inMap(x,y){return x>=VX&&y>=VY&&x<VX+VPW&&y<VY+VPH}
 function tileAt(x,y){const tx=(x-VX+S.cam.x)/TS|0,ty=(y-VY+S.cam.y)/TS|0;return inb(tx,ty)?idx(tx,ty):-1}
 function btnAt(x,y){return BTN.find(b=>x>=b.x&&y>=b.y&&x<b.x+b.w&&y<b.y+b.h)}
-cv.addEventListener('pointermove',e=>{const[x,y]=pos(e);const b=btnAt(x,y);UI.hoverBtn=b?b.id:null;S.hover=inMap(x,y)?tileAt(x,y):-1;
+cv.addEventListener('pointermove',e=>{const[x,y]=pos(e);UI.mx=x;UI.my=y;UI.inMap=inMap(x,y);if(!UI.inMap)cv.style.cursor='default';const b=btnAt(x,y);UI.hoverBtn=b?b.id:null;S.hover=inMap(x,y)?tileAt(x,y):-1;
  if(UI.dragMini)miniJump(x,y)});
-cv.addEventListener('pointerleave',()=>{UI.hoverBtn=null;S.hover=-1;UI.dragMini=false});
+cv.addEventListener('pointerleave',()=>{UI.inMap=false;UI.hoverBtn=null;S.hover=-1;UI.dragMini=false});
 cv.addEventListener('pointerdown',e=>{audio();if(SND.ctx&&SND.ctx.state==='suspended')SND.ctx.resume();const[x,y]=pos(e);const b=btnAt(x,y);
  if(b){UI.downBtn=b.id;return}
  if(x>=MM.x&&y>=MM.y&&x<MM.x+144&&y<MM.y+144){UI.dragMini=true;miniJump(x,y);return}
